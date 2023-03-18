@@ -71,5 +71,5 @@ server {
 mkdir /usr/local/share/ca-certificates/
 cp <full_path_to_the_certificate> /usr/local/share/ca-certificates/
 sudo update-ca-certificates
-``` Linux
+```
   
