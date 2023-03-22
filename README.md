@@ -63,7 +63,7 @@ server {
 }
 ```
 
-## Depending on your machne, you may need to add/trist your new self-signed tls cert via:
+## Depending on your machne, you may need to add/trust your new self-signed tls cert via:
 1. Finder > Keychain (mac)
 2. Windows > Run > mmc (windows) 
 3. Terminal (Linux)
