@@ -1,75 +1,34 @@
-# dev-self-signed-tls-generation-nginx
-Self-Signed TLS Certificate Generation with NGINX Example Usage
+# nginx-self-signed-tls
 
-## Generate CA Key (add an encryption flag such as -des3 if necessary)
-```
-openssl genrsa -out certificate-authority.key 2048
-```
+Local CA + TLS certs for dev domains, with an NGINX example.
 
-## Generate CA Certificate
-```
-openssl req -x509 -new -nodes -sha256 -days 360 -key certificate-authority.key -out certificate-authority.pem
-```
+One script. Creates a CA once, then issues a cert with the right SANs for any domain you give it. Trust the CA once and every cert it signs is green in the browser.
 
-## Generate TLS Key
-```
-openssl genrsa -out tls.key 2048
-```
+## Runbook
 
-## Generate CSR from TLS Key
-```
-openssl req -new -key tls.key -out tls.csr
-```
+```bash
+git clone https://github.com/coffeestained/nginx-self-signed-tls && cd nginx-self-signed-tls
+./gen-certs.sh app.local                 # -> certs/ca.pem, certs/app.local.{crt,key}
+echo "127.0.0.1 app.local" | sudo tee -a /etc/hosts
 
-## Create signing.cfg file with the following contents:
-```
-basicConstraints       = CA:FALSE
-authorityKeyIdentifier = keyid:always, issuer:always
-keyUsage               = nonRepudiation, digitalSignature, keyEncipherment, dataEncipherment
-subjectAltName         = @alt_names
+# trust the CA (once)
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain certs/ca.pem   # macOS
+sudo cp certs/ca.pem /usr/local/share/ca-certificates/dev-ca.crt && sudo update-ca-certificates     # Debian/Ubuntu
+certutil -addstore -f ROOT certs\ca.pem                                                               # Windows (admin)
 
-[ alt_names ]
-DNS.1 = localDomain.local
-DNS.2 = *.localDomain.local
-```
-  
-## Sign CSR using CA & Config
-```
-openssl x509 -req \
- -in tls.csr \
--CA certificate-authority.pem -CAkey certificate-authority.key -CAcreateserial  \
--out tls.crt \
--days 360 -sha256 -extfile signing.cfg
+# nginx
+sudo mkdir -p /etc/nginx/certs && sudo cp certs/app.local.* /etc/nginx/certs/
+sudo cp nginx.example.conf /etc/nginx/conf.d/app.local.conf && sudo nginx -t && sudo nginx -s reload
+curl https://app.local
 ```
 
-## Example NGINX Usage (Note that server_name matches signing.cfg alt_names
-```
-server {
-    listen 443 ssl;
+## Files
 
-    server_name example.localDomain.local;
+| file | purpose |
+|---|---|
+| `gen-certs.sh` | `gen-certs.sh <domain> [-o dir] [-d days] [-n ca_name]` |
+| `nginx.example.conf` | TLS termination + reverse proxy to `:3333` |
 
-    ssl_certificate     \path\tls.crt;
-    ssl_certificate_key \path\tls.key;
+Certs land in `certs/` (git-ignored). Firefox uses its own store: Settings → Certificates → Import `ca.pem`.
 
-    location / {
-        proxy_pass http://localhost:3333;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-## Depending on your machne, you may need to add/trust your new self-signed tls cert via:
-1. Finder > Keychain (mac)
-2. Windows > Run > mmc (windows) 
-3. Terminal (Linux)
-```
-mkdir /usr/local/share/ca-certificates/
-cp <full_path_to_the_certificate> /usr/local/share/ca-certificates/
-sudo update-ca-certificates
-```
-  
+MIT © Matthew Grady
